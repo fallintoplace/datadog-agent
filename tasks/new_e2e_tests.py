@@ -26,6 +26,7 @@ from invoke.tasks import task
 from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
@@ -819,6 +820,10 @@ def run(
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
         "extra_flags": extra_flags,
     }
+
+    # TEMPORARY: debugging the new-e2e-unit-tests CI investigation, to be removed.
+    print(f"DEBUG_CWD: python os.getcwd()={os.getcwd()}")
+    bazel(ctx, "run", "//internal/tools:debug_cwd", env=env_vars)
 
     to_teardown: set[tuple[str, str]] = set()
     result_jsons: list[str] = []

@@ -2,10 +2,22 @@ load("@bazel_lib//lib:transitions.bzl", "platform_transition_filegroup")
 load("@rules_multitool//multitool:cwd.bzl", "cwd")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
 
 cwd(
     name = "gotestsum",
     tool = "@tools_gotest_gotestsum//:gotestsum",
+)
+
+# TEMPORARY: debugging target for the new-e2e-unit-tests CI investigation, to be removed.
+sh_binary(
+    name = "debug_cwd_tool",
+    srcs = ["debug_cwd.sh"],
+)
+
+cwd(
+    name = "debug_cwd",
+    tool = ":debug_cwd_tool",
 )
 
 pkg_files(
