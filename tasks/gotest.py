@@ -10,6 +10,7 @@ import glob
 import operator
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -29,6 +30,7 @@ from tasks.collector import OTEL_CONTRIB_VERSION
 from tasks.coverage import PROFILE_COV, CodecovWorkaround
 from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
+from tasks.libs.build.bazel import bazel
 from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
@@ -482,15 +484,17 @@ def test_flavor(
     for batch in batches:
         batch_packages = ' '.join(batch)
         with CodecovWorkaround(ctx, result.path, coverage, batch_packages, args) as cov_test_path:
-            res = ctx.run(
-                command=cmd.format(
-                    packages=batch_packages,
-                    cov_test_path=cov_test_path,
-                    **args,
-                ),
+            formatted = cmd.format(packages=batch_packages, cov_test_path=cov_test_path, **args)
+            res = bazel(
+                ctx,
+                "run",
+                "//internal/tools:gotestsum",
+                "--",
+                *shlex.split(formatted),
                 env=env,
                 out_stream=test_profiler,
-                warn=True,
+                ignore_errors=True,
+                return_result=True,
             )
             # early stop on SIGINT: exit code is 128 + signal number, SIGINT is 2, so 130
             if res is not None and res.exited == 130:
@@ -724,7 +728,7 @@ def test(
     gobuild_flags = '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt}'
 
     stdlib_build_cmd = f'go build {{verbose}} {gobuild_flags} std cmd'
-    rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
+    rerun_coverage_fix = '--raw-command "{cov_test_path}"' if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
         + rerun_coverage_fix
@@ -733,7 +737,7 @@ def test(
     gotest_flags = (
         '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
     )
-    cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
+    cmd = f'{gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,

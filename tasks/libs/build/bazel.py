@@ -8,10 +8,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import IO, NamedTuple
+from typing import IO, Literal, NamedTuple, overload
 
 from invoke import Exit
 from invoke.context import Context
+from invoke.runners import Result
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import get_repo_root
@@ -93,6 +94,7 @@ def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
 
+@overload
 def bazel(
     ctx: Context,
     *args: str,
@@ -101,13 +103,49 @@ def bazel(
     ignore_errors: bool = False,
     input_stream: IO[str] | bool = False,
     sudo: bool = False,
-) -> str:
+    env: dict[str, str] | None = None,
+    out_stream: object | None = None,
+    return_result: Literal[False] = False,
+) -> str: ...
+
+
+@overload
+def bazel(
+    ctx: Context,
+    *args: str,
+    capture_output: bool = False,
+    capture_stderr: bool = False,
+    ignore_errors: bool = False,
+    input_stream: IO[str] | bool = False,
+    sudo: bool = False,
+    env: dict[str, str] | None = None,
+    out_stream: object | None = None,
+    return_result: Literal[True],
+) -> Result: ...
+
+
+def bazel(
+    ctx: Context,
+    *args: str,
+    capture_output: bool = False,
+    capture_stderr: bool = False,
+    ignore_errors: bool = False,
+    input_stream: IO[str] | bool = False,
+    sudo: bool = False,
+    env: dict[str, str] | None = None,
+    out_stream: object | None = None,
+    return_result: bool = False,
+) -> str | Result:
     """Execute a bazel command.
 
     capture_output: capture stdout.
     capture_stderr: also capture stderr and append it to the returned string.
         Use this when Bazel writes important output (e.g.  test results) to stderr
         and the caller needs to process it.
+    env: extra environment variables for the child process.
+    out_stream: stream to write the child process's stdout to as it runs.
+    return_result: return the raw invoke Result (exited, stdout, ...) instead
+        of the captured-output string.
     """
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
@@ -128,7 +166,13 @@ def bazel(
         kwargs["hide"] = "err"
     elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
         kwargs["pty"] = True
+    if env is not None:
+        kwargs["env"] = env
+    if out_stream is not None:
+        kwargs["out_stream"] = out_stream
     result = ctx.run(cmdline, echo=False, in_stream=input_stream, warn=ignore_errors, **kwargs)
+    if return_result:
+        return result
     captured = []
     if capture_output and result.ok:
         captured.append(result.stdout)
