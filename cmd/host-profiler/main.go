@@ -23,6 +23,9 @@ import (
 func main() {
 	// Prevent this process and all children from gaining new privileges via
 	// setuid binaries or file capabilities. Inherited across fork/exec.
+	//
+	// CAP_SYS_PTRACE is passed to child processes (e.g. objcopy) so they can access target binaries through
+	// /proc/<pid>/fd/<n>.
 	if err := unix.Prctl(unix.PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set PR_SET_NO_NEW_PRIVS: %v\n", err)
 		os.Exit(1)
